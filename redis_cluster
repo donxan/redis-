@@ -1,0 +1,98 @@
+#!/bin/sh
+# chkconfig: 2345 35 55
+# description: Redis Service
+
+### BEGIN INIT INFO
+# Provides:          Redis
+# Required-Start:    $all
+# Required-Stop:     $all
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: starts Redis
+# Description:       starts the BT-Web
+### END INIT INFO
+
+# Simple Redis init.d script conceived to work on Linux systems
+# as it does use of the /proc filesystem.
+
+EXEC=/www/server/redis/src/redis-server
+CLIEXEC=/www/server/redis/src/redis-cli
+myip=$(ifconfig | grep -A1 "eth0: " | awk '/inet/ {print $2}')
+redis_start(){
+	if [ -f $PIDFILE ]
+	then
+			echo "$PIDFILE exists, process is already running or crashed"
+	else
+			echo "Starting Redis server..."
+			nohup $EXEC $CONF >> /www/server/redis/logs.pl 2>&1 &
+	fi
+}
+#redis_stop(){
+#	if [ ! -f $PIDFILE ]
+#	then
+#			echo "$PIDFILE does not exist, process is not running"
+#	else
+#			PID=$(cat $PIDFILE)
+#			echo "Stopping ..."
+#			killall redis-server
+#			echo "Redis stopped"
+#	fi
+#}
+redis_stop(){
+        if [ ! -f $PIDFILE ]
+        then
+                        echo "$PIDFILE does not exist, process is not running"
+        else
+                        PID=$(cat $PIDFILE)
+                        echo "Stopping ..."
+                        $CLIEXEC -h $myip -p $REDISPORT shutdown
+                        while [ -x /proc/${PID} ]
+                        do
+                                echo "Waiting for Redis to shutdown ..."
+                                sleep 1
+                        done
+                        echo "Redis stopped"
+        fi
+}
+redis_cluster_start(){
+for REDISPORT in 7000 7002 7004 7006;
+do
+  PIDFILE=/var/run/redis_$REDISPORT.pid
+  CONF="/etc/redis_${REDISPORT}.conf"
+  redis_start
+done
+}
+redis_cluster_stop(){
+for REDISPORT in 7000 7002 7004 7006;
+do
+  PIDFILE=/var/run/redis_$REDISPORT.pid
+  CONF="/etc/redis_${REDISPORT}.conf"
+  redis_stop
+done
+}
+
+#read -p "Please input your redis requirepassword:" pass
+#while [ -z $pass ]
+#do
+#  read -p "Please input your redis requirepassword:" pass
+#done
+
+
+
+case "$1" in
+    start)
+	redis_cluster_start
+        ;;
+    stop)
+        redis_cluster_stop
+        ;;
+	restart|reload)
+		redis_cluster_stop
+		sleep 2
+		redis_cluster_start
+		;;
+    *)
+        echo "Please use start or stop as first argument"
+        ;;
+esac
+
